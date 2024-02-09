@@ -94,18 +94,24 @@ CREATE TABLE Payment (
 );
 
 ALTER TABLE Booking
-	ADD paid Decimal(10,2);
+ADD paid Decimal(10,2);
 UPDATE Booking
-	SET paid = (
-		SELECT ISNULL(SUM(amount), 0)
-		FROM Payment
-		WHERE Booking.bookingID = Payment.bookingID
-	);
+SET paid = (
+	SELECT ISNULL(SUM(amount), 0)
+	FROM Payment
+	WHERE Booking.bookingID = Payment.bookingID
+);
 
 ALTER TABLE Booking
-	ADD remaining Decimal(10,2);
+ADD remaining Decimal(10,2);
 UPDATE Booking
-	SET remaining = ISNULL(totalPrice, 0) - ISNULL(paid, 0);
+SET remaining = ISNULL(totalPrice, 0) - ISNULL(paid, 0);
+UPDATE Booking
+SET remaining = CASE
+    WHEN (totalPrice - paid) < 0 THEN 0
+    ELSE (totalPrice - paid)
+END;
+
 
 -- Tạo bảng đơn thừa kế Member --
 CREATE TABLE Member (
