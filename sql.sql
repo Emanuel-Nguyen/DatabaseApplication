@@ -1,52 +1,55 @@
+create database test2
+use test2
+--Create tables that dont have FK first
 
--- Tạo bảng Customer --
 CREATE TABLE Customer (
- customerID int PRIMARY KEY,
+ customerID int identity(1,1) PRIMARY KEY,
  name nvarchar(255),
  email nvarchar(255),
  phoneNumber nvarchar(20)
 );
+select * from Customer
 
--- Tạo bảng Supplier --
+
 CREATE TABLE Supplier (
  supplierID int PRIMARY KEY,
  name nvarchar(255),
  email nvarchar(255),
  phoneNumber nvarchar(20)
 );
+select * from Supplier
 
--- Tạo bảng Tour --
 CREATE TABLE Tour (
  tourID int PRIMARY KEY,
  name nvarchar(255),
  picture varbinary(max)
 );
+select * from Tour
 
--- Tạo bảng TourSupplier --
-CREATE TABLE TourSupplier (
- tourID int,
- supplierID int,
- price float,
- startDay date,
- endDay date,
- discription nvarchar(max),
- availability int, 
-	PRIMARY KEY (tourID, supplierID),
- FOREIGN KEY (tourID) REFERENCES Tour(tourID),
- FOREIGN KEY (supplierID) REFERENCES Supplier(supplierID)
-);
-
--- Tạo bảng Employee --
 CREATE TABLE Employee (
- employeeID int PRIMARY KEY,
- firstName nvarchar(255),
- lastName nvarchar(225)
- role nvarchar(255),
- email nvarchar(255),
- phoneNumber nvarchar(20)
+	employeeID int identity(1,1) PRIMARY KEY,
+	firstName nvarchar(255),
+	lastName nvarchar(255),
+	role nvarchar(255),
+	email nvarchar(255),
+	phoneNumber nvarchar(20)
 );
+select * from Employee
 
---Tạo function tính tổng giá trị Booking
+CREATE TABLE TourSupplier (
+	 tourID int,
+	 supplierID int,
+	 price float,
+	 startDay date,
+	 endDay date,
+	 discription nvarchar(max),
+	 availability int, 
+	 PRIMARY KEY (tourID, supplierID),
+	 FOREIGN KEY (tourID) REFERENCES Tour(tourID),
+	 FOREIGN KEY (supplierID) REFERENCES Supplier(supplierID)
+	);
+select * from TourSupplier
+
 CREATE FUNCTION dbo.CalculateTotalPrice(@BookingID INT, @TourID INT, @SupplierID INT)
 RETURNS DECIMAL(10, 2)
 AS
@@ -65,59 +68,36 @@ BEGIN
 END;
 GO
 
--- Tạo bảng Booking --
+
 CREATE TABLE Booking (
- bookingID int PRIMARY KEY,
- tourID int,
- supplierID int,
- customerID int,
- date date,
- status nvarchar(255),
- totalPrice float,
- paid float,
- remaining float,
- employeeID int, 
- FOREIGN KEY (tourID) REFERENCES Tour(tourID), 
- FOREIGN KEY (supplierID) REFERENCES Supplier(supplierID), 
- FOREIGN KEY (customerID) REFERENCES Customer(customerID), 
- FOREIGN KEY (employeeID) REFERENCES Employee(employeeID)
-);
-
--- Tạo bảng Payment --
-CREATE TABLE Payment (
- paymentID int PRIMARY KEY,
- bookingID int,
- amount float,
- date datetime,
- method nvarchar(10) CHECK (method IN ('banking', 'cash')),
- FOREIGN KEY (bookingID) REFERENCES Booking(bookingID)
+    bookingID INT PRIMARY KEY,
+    tourID INT,
+    supplierID INT,
+    date DATE,
+    status VARCHAR(50),
+    totalPrice AS dbo.CalculateTotalPrice(bookingID,tourID,supplierID),
+    FOREIGN KEY (tourID, supplierID) REFERENCES TourSupplier(tourID, supplierID)
 );
 
 ALTER TABLE Booking
-ADD paid Decimal(10,2);
-UPDATE Booking
-SET paid = (
-	SELECT ISNULL(SUM(amount), 0)
-	FROM Payment
-	WHERE Booking.bookingID = Payment.bookingID
-);
+ADD customerID INT;
+ALTER TABLE Booking
+ADD CONSTRAINT FK_Booking_Customer
+FOREIGN KEY (customerID)
+REFERENCES Customer(customerID);
 
 ALTER TABLE Booking
-ADD remaining Decimal(10,2);
-UPDATE Booking
-SET remaining = ISNULL(totalPrice, 0) - ISNULL(paid, 0);
-UPDATE Booking
-SET remaining = CASE
-    WHEN (totalPrice - paid) < 0 THEN 0
-    ELSE (totalPrice - paid)
-END;
+ADD employeeID INT;
+ALTER TABLE Booking
+ADD CONSTRAINT FK_Booking_Employee
+FOREIGN KEY (employeeID)
+REFERENCES Employee(employeeID);
 
 
--- Tạo bảng đơn thừa kế Member --
+
 CREATE TABLE Member (
     memberID INT PRIMARY KEY,
     bookingID INT,
- 	  foreign key (bookingID) references Booking(bookingID)
     firstName VARCHAR(100),
     lastName VARCHAR(100),
     DOB DATE,
@@ -137,16 +117,113 @@ CREATE TABLE Member (
         WHEN DATEDIFF(YEAR, DOB, GETDATE()) BETWEEN 5 AND 12 THEN 0.7
         WHEN DATEDIFF(YEAR, DOB, GETDATE()) BETWEEN 2 AND 4 THEN 0.5
         WHEN DATEDIFF(YEAR, DOB, GETDATE()) BETWEEN 0 AND 1 THEN 0
-        ELSE NULL
+        ELSE NULL  -- Handle other cases if needed
         
 	END
-    )
- );
+    ),
 
--- Tạo bảng Ticket --
+	foreign key (bookingID) references Booking(bookingID)
+	);
+
+
 CREATE TABLE Ticket (
- ticketID int PRIMARY KEY,
- memberID int,
- issuedTime datetime,
- FOREIGN KEY (memberID) REFERENCES Member(memberID)
+	 ticketID int PRIMARY KEY,
+	 memberID int,
+	 issuedTime datetime,
+	 FOREIGN KEY (memberID) REFERENCES Member(memberID)
+	);
+
+
+CREATE TABLE Payment (
+    paymentID INT PRIMARY KEY,
+    bookingID INT,
+    amount FLOAT,
+    date DATETIME,
+    method NVARCHAR(10) CHECK (method IN ('banking', 'cash')),
+    FOREIGN KEY (bookingID) REFERENCES Booking(bookingID)
 );
+use test2
+
+alter table Member
+add gender int check (gender in ('1','2'))
+--PAYMENT DEADLINE 
+ALTER TABLE Booking
+ADD paymentDeadline DATE;
+
+-- Update the paymentDeadline column based on startDate from TourSupplier
+UPDATE Booking
+SET paymentDeadline = (
+    SELECT DATEADD(DAY, -2, startDay)
+    FROM TourSupplier
+    WHERE Booking.tourID = TourSupplier.tourID
+      AND Booking.supplierID = TourSupplier.supplierID
+
+--PAID VALUEs
+
+ALTER TABLE Booking
+	ADD paid Decimal(10,2);
+use test2
+UPDATE Booking
+SET paid = (
+    SELECT ISNULL(SUM(amount), 0)
+    FROM Payment
+    WHERE Booking.bookingID = Payment.bookingID
+);
+
+--REMAINING VALUES
+
+ALTER TABLE Booking
+	ADD remaining Decimal(10,2);
+
+UPDATE Booking
+SET remaining = ISNULL(totalPrice, 0) - ISNULL(paid, 0);
+UPDATE Booking
+SET remaining = CASE
+    WHEN (totalPrice - paid) < 0 THEN 0
+    ELSE (totalPrice - paid)
+END;
+
+SELECT * FROM Booking;
+
+-- FULLY PAYMENT DATE
+
+ALTER TABLE Booking
+ADD fullyPaidDate DATETIME;
+
+UPDATE Booking
+SET fullyPaidDate = (
+    SELECT MAX(date)
+    FROM Payment
+    WHERE Payment.bookingID = Booking.bookingID and remaining=0
+);
+
+
+--TOTAL SLOT
+
+ALTER TABLE TourSupplier
+ADD totalSlots INT
+
+--STATUS OF BOOKING -> ARCHIVED, replcds by triggers
+
+"""UPDATE Booking
+SET status = CASE
+    WHEN fullyPaidDate IS NOT NULL AND fullyPaidDate <= paymentDeadline THEN 'Success'
+    WHEN fullyPaidDate IS NOT NULL AND fullyPaidDate > paymentDeadline THEN 'Expired'
+    WHEN fullyPaidDate IS NULL AND GETDATE() > paymentDeadline THEN 'Expired'
+    WHEN fullyPaidDate IS NULL AND GETDATE() <= paymentDeadline THEN 'Pending'
+    ELSE 'Pending'
+END;"""
+
+
+-- REFUND INFORMATION
+CREATE TABLE Refund (
+    refundID INT PRIMARY KEY,
+    bookingID INT REFERENCES Booking(bookingID),
+    name VARCHAR(255), -- Customer name or other identifier
+    method VARCHAR(50) CHECK (method IN ('banking', 'cash')),
+    bankingNumber VARCHAR(255), -- Banking details for refund
+    bankName VARCHAR(255), -- Name of the bank
+    amount DECIMAL(10, 2),
+    status VARCHAR(50),
+    transactionConfirmation VARCHAR(255), 
+	)
