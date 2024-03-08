@@ -186,7 +186,7 @@ CREATE TABLE Refund (
     bankName                VARCHAR (255) NULL,
     status                  VARCHAR (50) NOT NULL,
     transactionConfirmation VARCHAR (255) NOT NULL,
-    PRIMARY KEY CLUSTERED (refundID ASC),
+
     FOREIGN KEY (bookingID) REFERENCES Booking (bookingID),
     CHECK (method='cash' OR method='banking')
 );
