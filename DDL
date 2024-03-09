@@ -191,27 +191,19 @@ CREATE TABLE Refund (
     CHECK (method='cash' OR method='banking')
 );
 
-CREATE TABLE Supplier (
-    supplierID         INT PRIMARY KEY NOT NULL,
-    name               NVARCHAR (255) NOT NULL,
-    email              NVARCHAR (255) NULL,
-    address            NVARCHAR (255) NULL,
-    website            NVARCHAR (255) NULL,
-    contactPerson      NVARCHAR (255) NULL,
-    contactPersonPhone NVARCHAR (20) NULL,
-    contactPersonEmail NVARCHAR (255) NULL
-);
+-- Nên tạo khóa ngoại TicketID trong table Member for easier retrival
 
-CREATE TABLE TourSupplier (
-    tourID       INT PRIMARY KEY NOT NULL,
-    supplierID   INT PRIMARY KEY NOT NULL,
-    price        DECIMAL (10, 2) NOT NULL,
-    startDay     DATE NOT NULL,
-    endDay       DATE NOT NULL,
-    description  NVARCHAR (MAX) NOT NULL,
-    availability INT NOT NULL,
-    totalSlots   INT NOT NULL,
-    FOREIGN KEY (tourID) REFERENCES Tour (tourID),
-    FOREIGN KEY (supplierID) REFERENCES Supplier (supplierID)
-);
+DROP CONSTRAINT FK__Ticket__memberID__6EF57B66;
+
+ALTER TABLE Ticket
+DROP COLUMN MemberID
+
+ALTER TABLE Member
+ADD ticketID INT
+
+ALTER TABLE Member
+ADD CONSTRAINT Member_Ticket UNIQUE (ticketID);
+
+
+
 
