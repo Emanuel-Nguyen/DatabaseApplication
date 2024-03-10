@@ -1,5 +1,5 @@
-CREATE DATABASE test3;
-USE test3;
+use [10/03Testing]
+
 
 -- Tạo các bảng duy trì dữ liệu (không chứa Foreign Keys)
 
@@ -38,14 +38,15 @@ CREATE TABLE Supplier (
 );
 
 CREATE TABLE TourSupplier (
-    tourID       INT PRIMARY KEY NOT NULL,
-    supplierID   INT PRIMARY KEY NOT NULL,
+    tourID       INT NOT NULL,
+    supplierID   INT NOT NULL,
     price        DECIMAL (10, 2) NOT NULL,
     startDay     DATE NOT NULL,
     endDay       DATE NOT NULL,
     description  NVARCHAR (MAX) NOT NULL,
     availability INT NOT NULL,
     totalSlots   INT NOT NULL,
+    PRIMARY KEY (tourID, supplierID),
     FOREIGN KEY (tourID) REFERENCES Tour (tourID),
     FOREIGN KEY (supplierID) REFERENCES Supplier (supplierID)
 );
@@ -76,18 +77,17 @@ END;
 --Tạo các bảng giao dịch
 
 CREATE TABLE Booking (
-    bookingID       INT PRIMARY KEY NOT NULL,
-    tourID          INT NOT NULL,
-    supplierID      INT NOT NULL,
-    date            DATE DEFAULT GETDATE(),
-    status          VARCHAR (50) DEFAULT 'Pending',
-    totalPrice      AS CalculateTotalPrice(bookingID, tourID, supplierID),
-    customerID      INT NULL,
-    employeeID      INT NOT NULL,
-    paid            DECIMAL (10, 2) NULL,
-    remaining       AS ISNULL(totalPrice, 0) - ISNULL(paid, 0),
-    paymentDeadline AS CalculatePaymentDeadline(tourID, supplierID),
-    fullyPaidDate   DATETIME NULL,
+	[bookingID] [int] PRIMARY KEY NOT NULL,
+	[tourID] [int] NOT NULL,
+	[supplierID] [int] NOT NULL,
+	[date] [date] NULL,
+	[status] [varchar](50) DEFAULT 'Pending',
+	[totalPrice]  AS ([dbo].[CalculateTotalPrice]([bookingID],[tourID],[supplierID])),
+	[customerID] [int] NULL,
+	[employeeID] [int] NOT NULL,
+	[paid] [decimal](10, 2) NULL,
+	[paymentDeadline]  AS ([dbo].[CalculatePaymentDeadline]([TourID],[SupplierID])),
+	[fullyPaidDate] [datetime] NULL,
     CONSTRAINT FK_Booking_TourSupplier FOREIGN KEY (tourID, supplierID) REFERENCES TourSupplier (tourID, supplierID),
     CONSTRAINT FK_Booking_Customer FOREIGN KEY (customerID) REFERENCES Customer (customerID),
     CONSTRAINT FK_Booking_Employee FOREIGN KEY (employeeID) REFERENCES Employee (employeeID)
@@ -95,21 +95,26 @@ CREATE TABLE Booking (
 
 --Tạo trigger tự động cập nhật trạng thái Booking sau mỗi lần cập nhật Paid
 
-CREATE TRIGGER UpdateStatusTrigger
-ON Booking AFTER UPDATE AS BEGIN
-    IF UPDATE(Paid) 
+CREATE TRIGGER [dbo].[UpdateStatusTrigger]
+ON [dbo].[Booking]
+AFTER UPDATE
+AS
+BEGIN
+    -- Check if the status column is updated or relevant columns are updated
+    IF UPDATE(fullyPaidDate) 
     BEGIN
+        -- Update the status column based on the specified conditions
         UPDATE Booking
         SET status = 
             CASE
-                WHEN fullyPaidDate IS NOT NULL AND fullyPaidDate <= paymentDeadline THEN 'Success'
-                WHEN fullyPaidDate IS NOT NULL AND fullyPaidDate > paymentDeadline THEN 'Expired'
-                WHEN fullyPaidDate IS NULL AND GETDATE() > paymentDeadline THEN 'Expired'
+                WHEN fullyPaidDate <= paymentDeadline THEN 'Success'
+                WHEN fullyPaidDate > paymentDeadline THEN 'Expired'
                 WHEN fullyPaidDate IS NULL AND GETDATE() <= paymentDeadline THEN 'Pending'
                 ELSE 'Pending'
             END;
-    END;
+    END
 END;
+
 
 CREATE TABLE Member (
     memberID   INT PRIMARY KEY NOT NULL,
@@ -132,26 +137,29 @@ CREATE TABLE Member (
 
 --Tạo Trigger tự động update slots còn trống nếu status của Booking chuyển sang 'Success'
 
-CREATE TRIGGER UpdateAvailabilityTrigger
-ON Booking AFTER UPDATE AS BEGIN
+
+CREATE TRIGGER [dbo].[UpdateAvailabilityTrigger]
+ON [dbo].[Booking]
+AFTER UPDATE
+AS
+BEGIN
     IF UPDATE(status) AND EXISTS (SELECT 1 FROM inserted WHERE status = 'Success')
     BEGIN
         UPDATE TourSupplier
-        SET availability = totalSlots - (
+        SET availability = totalSlots- (
             SELECT COUNT(*) 
             FROM Member 
-            WHERE bookingID IN (SELECT bookingID FROM inserted) AND height >= 60
+            WHERE bookingID IN (SELECT bookingID FROM inserted) AND height>=60
         )
-        WHERE tourID IN (SELECT tourID FROM inserted) AND supplierID IN (SELECT supplierID FROM inserted);
-    END;
+        WHERE tourID IN (SELECT tourID FROM inserted) and supplierID IN (SELECT supplierID FROM inserted);
+    END
 END;
+
 
 CREATE TABLE Ticket (
     ticketID   INT PRIMARY KEY NOT NULL,
-    memberID   INT NOT NULL,
     issuedTime DATETIME DEFAULT GETDATE(),
-    FOREIGN KEY (memberID) REFERENCES Member (memberID)
-);
+  );
 
 CREATE TABLE Payment (
     paymentID INT PRIMARY KEY NOT NULL,
@@ -159,7 +167,6 @@ CREATE TABLE Payment (
     amount FLOAT (53) NOT NULL,
     date DATETIME NOT NULL,
     method NVARCHAR (10) NOT NULL,
-    PRIMARY KEY CLUSTERED (paymentID ASC),
     FOREIGN KEY (bookingID) REFERENCES Booking (bookingID),
     CHECK (method='cash' OR method='banking')
 );
@@ -199,13 +206,9 @@ ALTER TABLE Ticket
 DROP COLUMN MemberID
 
 ALTER TABLE Member
-ADD ticketID INT
+ADD ticketID INT UNIQUE
 
 ALTER TABLE Member
-ADD CONSTRAINT FK_Member_Ticket
+ADD CONSTRAINT Member_Ticket 
 FOREIGN KEY (ticketID)
 REFERENCES Ticket(ticketID);
-
-
-
-
