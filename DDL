@@ -202,7 +202,9 @@ ALTER TABLE Member
 ADD ticketID INT
 
 ALTER TABLE Member
-ADD CONSTRAINT Member_Ticket UNIQUE (ticketID);
+ADD CONSTRAINT FK_Member_Ticket
+FOREIGN KEY (ticketID)
+REFERENCES Ticket(ticketID);
 
 
 
