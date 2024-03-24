@@ -1,17 +1,15 @@
-use [10/03Testing]
-
 
 -- Tạo các bảng duy trì dữ liệu (không chứa Foreign Keys)
 
 CREATE TABLE Customer (
-    customerID  INT PRIMARY KEY IDENTITY (1, 1) NOT NULL,
+    customerID  NVARCHAR(20) PRIMARY KEY NOT NULL,
     name        NVARCHAR (255) NOT NULL,
     email       NVARCHAR (255) NULL,
     phoneNumber NVARCHAR (20) NOT NULL
 );
 
 CREATE TABLE Employee (
-    employeeID  INT PRIMARY KEY IDENTITY (1, 1) NOT NULL,
+    employeeID NVARCHAR (20) NOT NULL,
     firstName   NVARCHAR (255) NOT NULL,
     lastName    NVARCHAR (255) NOT NULL,
     role        NVARCHAR (255) NOT NULL,
@@ -20,14 +18,14 @@ CREATE TABLE Employee (
 );
 
 CREATE TABLE Tour (
-    tourID      INT PRIMARY KEY NOT NULL,
+    tourID      NVARCHAR (20) PRIMARY KEY NOT NULL,
     name        NVARCHAR (255) NOT NULL,
     picture     NVARCHAR (255) NULL,
     description NVARCHAR (MAX) NULL
 );
 
 CREATE TABLE Supplier (
-    supplierID          INT PRIMARY KEY NOT NULL,
+    supplierID          NVARCHAR (20) PRIMARY KEY NOT NULL,
     name                NVARCHAR (255) NOT NULL,
     email               NVARCHAR (255) NULL,
     address             NVARCHAR (255) NULL,
@@ -38,8 +36,8 @@ CREATE TABLE Supplier (
 );
 
 CREATE TABLE TourSupplier (
-    tourID       INT NOT NULL,
-    supplierID   INT NOT NULL,
+    tourID       NVARCHAR (20) NOT NULL,
+    supplierID   NVARCHAR (20) NOT NULL,
     price        DECIMAL (10, 2) NOT NULL,
     startDay     DATE NOT NULL,
     endDay       DATE NOT NULL,
@@ -55,8 +53,8 @@ CREATE TABLE TourSupplier (
 
 CREATE FUNCTION CalculateTotalPrice(
     @BookingID INT, 
-    @TourID INT, 
-    @SupplierID INT
+    @TourID NVARCHAR (20), 
+    @SupplierID NVARCHAR (20)
 ) RETURNS DECIMAL(10, 2) AS BEGIN
     DECLARE @TotalMultiplier DECIMAL(10, 2);
     SELECT @TotalMultiplier = ISNULL(SUM(multiplier), 0) FROM Member WHERE bookingID = @BookingID;
@@ -66,8 +64,8 @@ END;
 --Tạo Function tự động tính thời hạn thanh toán Booking
 
 CREATE FUNCTION CalculatePaymentDeadline(
-    @TourID INT, 
-    @SupplierID INT
+    @TourID NVARCHAR (20), 
+    @SupplierID NVARCHAR (20)
 ) RETURNS DATE AS BEGIN
     DECLARE @StartDay DATE;
     SELECT @StartDay = startDay FROM TourSupplier WHERE tourID = @TourID AND supplierID = @SupplierID;
@@ -77,9 +75,9 @@ END;
 --Tạo các bảng giao dịch
 
 CREATE TABLE Booking (
-	[bookingID] [int] PRIMARY KEY NOT NULL,
-	[tourID] [int] NOT NULL,
-	[supplierID] [int] NOT NULL,
+	[bookingID] INT PRIMARY KEY NOT NULL,
+	[tourID] NVARCHAR (20) NOT NULL,
+	[supplierID] NVARCHAR (20) NOT NULL,
 	[date] [date] NULL,
 	[status] [varchar](50) DEFAULT 'Pending',
 	[totalPrice]  AS ([dbo].[CalculateTotalPrice]([bookingID],[tourID],[supplierID])),
@@ -88,6 +86,8 @@ CREATE TABLE Booking (
 	[paid] [decimal](10, 2) NULL,
 	[paymentDeadline]  AS ([dbo].[CalculatePaymentDeadline]([TourID],[SupplierID])),
 	[fullyPaidDate] [datetime] NULL,
+	[note] [nvarchar](4000) NULL,
+	[bookingTime] [datetime] NULL,
     CONSTRAINT FK_Booking_TourSupplier FOREIGN KEY (tourID, supplierID) REFERENCES TourSupplier (tourID, supplierID),
     CONSTRAINT FK_Booking_Customer FOREIGN KEY (customerID) REFERENCES Customer (customerID),
     CONSTRAINT FK_Booking_Employee FOREIGN KEY (employeeID) REFERENCES Employee (employeeID)
@@ -95,39 +95,35 @@ CREATE TABLE Booking (
 
 --Tạo trigger tự động cập nhật trạng thái Booking sau mỗi lần cập nhật Paid
 
-CREATE TRIGGER [dbo].[UpdateStatusTrigger]
+CREAT TRIGGER [dbo].[UpdateStatusTrigger]
 ON [dbo].[Booking]
 AFTER UPDATE
 AS
 BEGIN
-    -- Check if the status column is updated or relevant columns are updated
-    IF UPDATE(fullyPaidDate) 
-    BEGIN
-        -- Update the status column based on the specified conditions
-        UPDATE Booking
-        SET status = 
-            CASE
-                WHEN fullyPaidDate <= paymentDeadline THEN 'Success'
-                WHEN fullyPaidDate > paymentDeadline THEN 'Expired'
-                WHEN fullyPaidDate IS NULL AND GETDATE() <= paymentDeadline THEN 'Pending'
-                ELSE 'Pending'
-            END;
-    END
+    UPDATE Booking
+    SET status = 
+        CASE
+		    WHEN status = 'Success' THEN 'Success'
+            WHEN fullyPaidDate IS NOT NULL THEN 'Waiting for Tickets'
+            WHEN GETDATE() <= paymentDeadline THEN 'Pending'
+            WHEN GETDATE() > paymentDeadline THEN 'Expired'
+            ELSE 'outoftrack'
+        END;
 END;
 
 
 CREATE TABLE Member (
-    memberID   INT PRIMARY KEY NOT NULL,
+    memberID   NVARCHAR (20) PRIMARY KEY NOT NULL,
     bookingID  INT NOT NULL,
-    firstName  VARCHAR (100) NOT NULL,
-    lastName   VARCHAR (100) NOT NULL,
-    gender     INT CHECK (gender IN (0, 1)),
-    DOB        DATE NOT NULL,
+    firstName  VARCHAR (50) NOT NULL,
+    lastName   VARCHAR (50) NOT NULL,
+    gender     INT CHECK (gender IN (0, 1)) NULL,
+    DOB        DATE NULL,
     height     INT NOT NULL, 
     multiplier AS (
         CASE
-            WHEN height > 120 THEN 1
-            WHEN height >= 60 THEN 0.7
+            WHEN height > 130 THEN 1
+            WHEN height >= 80 THEN 0.7
             WHEN height > 0 THEN 0
             ELSE 'Unidentified'
         END
@@ -149,23 +145,24 @@ BEGIN
         SET availability = totalSlots- (
             SELECT COUNT(*) 
             FROM Member 
-            WHERE bookingID IN (SELECT bookingID FROM inserted) AND height>=60
-        )
+            WHERE bookingID IN (SELECT bookingID FROM inserted) AND height>=80
+)
         WHERE tourID IN (SELECT tourID FROM inserted) and supplierID IN (SELECT supplierID FROM inserted);
     END
 END;
 
 
 CREATE TABLE Ticket (
-    ticketID   INT PRIMARY KEY NOT NULL,
+    ticketID   NVARCHAR (20) PRIMARY KEY NOT NULL,
     issuedTime DATETIME DEFAULT GETDATE(),
+    note NVARCHAR(400) NULL
   );
 
 CREATE TABLE Payment (
-    paymentID INT PRIMARY KEY NOT NULL,
+    paymentID NVARCHAR (20) PRIMARY KEY NOT NULL,
     bookingID INT NOT NULL,
     amount FLOAT (53) NOT NULL,
-    date DATETIME NOT NULL,
+    transactionTime DATETIME NOT NULL,
     method NVARCHAR (10) NOT NULL,
     FOREIGN KEY (bookingID) REFERENCES Booking (bookingID),
     CHECK (method='cash' OR method='banking')
@@ -181,7 +178,8 @@ ON Payment AFTER INSERT, UPDATE AS BEGIN
          FROM Payment 
          WHERE bookingID IN (SELECT bookingID FROM inserted)),
         0
-    );
+    )
+    WHERE Booking.bookingID IN (SELECT bookingID FROM inserted);
 END;
 
 CREATE TABLE Refund (
@@ -192,23 +190,8 @@ CREATE TABLE Refund (
     bankingNumber           VARCHAR (255) NULL,
     bankName                VARCHAR (255) NULL,
     status                  VARCHAR (50) NOT NULL,
-    transactionConfirmation VARCHAR (255) NOT NULL,
+    transactionConfirmation NVARCHAR (255) NOT NULL,
 
     FOREIGN KEY (bookingID) REFERENCES Booking (bookingID),
     CHECK (method='cash' OR method='banking')
 );
-
--- Nên tạo khóa ngoại TicketID trong table Member for easier retrival
-
-DROP CONSTRAINT FK__Ticket__memberID__6EF57B66;
-
-ALTER TABLE Ticket
-DROP COLUMN MemberID
-
-ALTER TABLE Member
-ADD ticketID INT UNIQUE
-
-ALTER TABLE Member
-ADD CONSTRAINT Member_Ticket 
-FOREIGN KEY (ticketID)
-REFERENCES Ticket(ticketID);
