@@ -1,5 +1,5 @@
-
 -- Tạo các bảng duy trì dữ liệu (không chứa Foreign Keys)
+
 
 CREATE TABLE Customer (
     customerID  NVARCHAR(20) PRIMARY KEY NOT NULL,
@@ -7,9 +7,8 @@ CREATE TABLE Customer (
     email       NVARCHAR (255) NULL,
     phoneNumber NVARCHAR (20) NOT NULL
 );
-
 CREATE TABLE Employee (
-    employeeID NVARCHAR (20) NOT NULL,
+    employeeID NVARCHAR (20)PRIMARY KEY NOT NULL,
     firstName   NVARCHAR (255) NOT NULL,
     lastName    NVARCHAR (255) NOT NULL,
     role        NVARCHAR (255) NOT NULL,
@@ -75,27 +74,28 @@ END;
 --Tạo các bảng giao dịch
 
 CREATE TABLE Booking (
-	[bookingID] INT PRIMARY KEY NOT NULL,
-	[tourID] NVARCHAR (20) NOT NULL,
-	[supplierID] NVARCHAR (20) NOT NULL,
-	[date] [date] NULL,
-	[status] [varchar](50) DEFAULT 'Pending',
-	[totalPrice]  AS ([dbo].[CalculateTotalPrice]([bookingID],[tourID],[supplierID])),
-	[customerID] [int] NULL,
-	[employeeID] [int] NOT NULL,
-	[paid] [decimal](10, 2) NULL,
-	[paymentDeadline]  AS ([dbo].[CalculatePaymentDeadline]([TourID],[SupplierID])),
-	[fullyPaidDate] [datetime] NULL,
-	[note] [nvarchar](4000) NULL,
-	[bookingTime] [datetime] NULL,
-    CONSTRAINT FK_Booking_TourSupplier FOREIGN KEY (tourID, supplierID) REFERENCES TourSupplier (tourID, supplierID),
-    CONSTRAINT FK_Booking_Customer FOREIGN KEY (customerID) REFERENCES Customer (customerID),
-    CONSTRAINT FK_Booking_Employee FOREIGN KEY (employeeID) REFERENCES Employee (employeeID)
+    bookingID       INT PRIMARY KEY NOT NULL,
+    tourID          NVARCHAR (20) NOT NULL,
+    supplierID      NVARCHAR (20) NOT NULL,
+    date            DATE NULL,
+    status          VARCHAR (50) DEFAULT 'Pending',
+    totalPrice      AS dbo.CalculateTotalPrice(bookingID, tourID, supplierID),
+    customerID      NVARCHAR (20) NULL,
+    employeeID      NVARCHAR (20) NOT NULL,
+    paid            DECIMAL (10, 2) NULL,
+    fullyPaidDate   DATETIME NULL,
+    note            NVARCHAR (4000) NULL,
+    bookingTime     DATETIME NULL,
+    FOREIGN KEY (tourID) REFERENCES Tour (tourID),
+    FOREIGN KEY (supplierID) REFERENCES Supplier (supplierID),
+    FOREIGN KEY (customerID) REFERENCES Customer (customerID),
+    FOREIGN KEY (employeeID) REFERENCES Employee (employeeID),
+    FOREIGN KEY (tourID, supplierID) REFERENCES TourSupplier (tourID, supplierID)
 );
 
 --Tạo trigger tự động cập nhật trạng thái Booking sau mỗi lần cập nhật Paid
 
-CREAT TRIGGER [dbo].[UpdateStatusTrigger]
+CREATe TRIGGER [dbo].[UpdateStatusTrigger]
 ON [dbo].[Booking]
 AFTER UPDATE
 AS
